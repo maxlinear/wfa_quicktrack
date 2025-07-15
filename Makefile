@@ -1,7 +1,10 @@
 # Type is laptop or openwrt
 TYPE = openwrt
 # Role is dut or platform or sniffer or afc
+ROLE = dut
+ifeq ($(AFC_CFLAG),AFC)
 ROLE = afc
+endif
 # Package Version
 VERSION = "2.2.0.46"
 
@@ -48,6 +51,7 @@ ifneq ($(VERSION),)
 CFLAGS += -D_VERSION_='$(VERSION)'
 endif
 
+ifeq ($(ROLE),dut)
 all: app
 
 %.o: %.c 
@@ -55,6 +59,14 @@ all: app
 
 app: $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^
+else ifeq ($(ROLE), afc)
+all: app_afc
 
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+app_afc: $(OBJS)
+		    $(CC) $(CFLAGS) -o $@ $^
+endif
 clean:
-	rm -rf app *.o
+	rm -rf *.o

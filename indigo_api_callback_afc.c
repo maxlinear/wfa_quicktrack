@@ -362,6 +362,8 @@ static int afcd_configure_handler(struct packet_wrapper *req, struct packet_wrap
             system("sleep 7");
             system("ubus-cli WiFi.Radio.3.Vendor.ACS.AcsStrictChList='1'");
             system("sleep 7");
+            system("ubus-cli WiFi.Radio.3.Vendor.DuplicateBeaconEnabled=0");
+            system("sleep 7");
 #else
             system("uci set wireless.radio4.acs_fallback_chan='73 0 20'");
             system("uci set wireless.radio4.acs_ch_list='1 5 9 13 17 21 25 29 33 37 41 45 49 53 57 61 65 69 73 77 81 85 89 93'");
@@ -380,6 +382,10 @@ static int afcd_configure_handler(struct packet_wrapper *req, struct packet_wrap
             system("sleep 7");
             system("ubus-cli WiFi.Radio.3.Vendor.ACS.AcsStrictChList='1'");
             system("sleep 7");
+            system("ubus-cli WiFi.Radio.3.Vendor.DuplicateBeaconEnabled=1");
+            system("sleep 7");
+            system("ubus-cli WiFi.Radio.3.Vendor.DuplicateBeaconBw=1");
+            system("sleep 20");
 #else
             system("uci set wireless.radio4.acs_fallback_chan='33 37 40'");
             system("uci set wireless.radio4.acs_ch_list='3 11 19 27 35 43 51 59 67 75 83 91'");
@@ -398,6 +404,11 @@ static int afcd_configure_handler(struct packet_wrapper *req, struct packet_wrap
             system("sleep 7");
             system("ubus-cli WiFi.Radio.3.Vendor.ACS.AcsStrictChList='1'");
             system("sleep 7");
+            system("ubus-cli WiFi.Radio.3.Vendor.DuplicateBeaconEnabled=1");
+            system("sleep 7");
+            system("ubus-cli WiFi.Radio.3.Vendor.DuplicateBeaconBw=2");
+            system("sleep 20");
+
 #else
             system("uci set wireless.radio4.acs_fallback_chan='33 49 80'");
             system("uci set wireless.radio4.acs_ch_list='7 23 39 55 71 87'");
@@ -416,6 +427,10 @@ static int afcd_configure_handler(struct packet_wrapper *req, struct packet_wrap
             system("sleep 7");
             system("ubus-cli WiFi.Radio.3.Vendor.ACS.AcsStrictChList='1'");
             system("sleep 7");
+            system("ubus-cli WiFi.Radio.3.Vendor.DuplicateBeaconEnabled=1");
+            system("sleep 7");
+            system("ubus-cli WiFi.Radio.3.Vendor.DuplicateBeaconBw=3");
+            system("sleep 20");
 #else
             system("uci set wireless.radio4.acs_fallback_chan='73 0 20'");
             system("uci set wireless.radio4.acs_ch_list='15 47 79'");
@@ -434,6 +449,11 @@ static int afcd_configure_handler(struct packet_wrapper *req, struct packet_wrap
             system("sleep 7");
             system("ubus-cli WiFi.Radio.3.Vendor.ACS.AcsStrictChList='1'");
             system("sleep 7");
+            system("ubus-cli WiFi.Radio.3.Vendor.DuplicateBeaconEnabled=1");
+            system("sleep 7");
+            system("ubus-cli WiFi.Radio.3.Vendor.DuplicateBeaconBw=4");
+            system("sleep 20");
+
 #else
             system("uci set wireless.radio4.acs_fallback_chan='31 63 95'");
             system("uci set wireless.radio4.acs_ch_list='31 63 95 127 159 191'");
@@ -453,6 +473,8 @@ static int afcd_configure_handler(struct packet_wrapper *req, struct packet_wrap
         system("ubus-cli WiFi.Radio.3.Vendor.ACS.AcsFallbackBW=20");
         system("sleep 7");
         system("ubus-cli WiFi.Radio.3.Vendor.ACS.AcsStrictChList='1'");
+        system("sleep 7");
+        system("ubus-cli WiFi.Radio.3.Vendor.DuplicateBeaconEnabled=0");
         system("sleep 7");
 #else
         system("uci set wireless.radio4.acs_fallback_chan='73 0 20'");
@@ -554,11 +576,11 @@ static int afcd_operation_handler(struct packet_wrapper *req, struct packet_wrap
         //Workaround for afc driver improperly adjusting from allowed to disallowed state on the same channel
 #ifdef UPDK
         system("/etc/init.d/prplmesh_whm restart");
-        sleep(5);
+        sleep(40);
 #else
         system("wifi");
 #endif
-        sleep(17);
+        sleep(20);
 
         //Send command to Hostap to open 60 second timeout window to recieve standard power commands
         //Contact AFC server to recieve AFC data

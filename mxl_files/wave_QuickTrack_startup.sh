@@ -28,6 +28,13 @@ if [ "$ROLE" != "afc" ]; then
         else
                 echo "stop services"
                 /etc/init.d/prplmesh stop
+                /etc/init.d/amx-processmonitor stop
+                sleep 5
+                pid=`ps -eF | grep amx-processmonitor | grep -v grep | awk '{ print $2}'`
+                while [ -n "$pid" ]; do
+                        ap_tmp=`eval kill -9 $pid`
+                        pid=`ps -eF | grep amx-processmonitor | grep -v grep | awk '{ print $2}'`
+                done
                 if [ -f "/usr/bin/amxrt" ]; then
                 # UPDK
                 /etc/init.d/prplmesh_whm stop
@@ -104,5 +111,10 @@ else
         fi
 fi
 
-echo "Run QuickTrack agent"
-wfa_quicktrack -p 9004 -d &
+if [ "$ROLE" != "afc" ]; then
+	echo "Run QuickTrack agent"
+	wfa_quicktrack -p 9004 -d &
+else
+	echo "Run QuickTrack agent for AFC"
+	wfa_quicktrack_afc -p 9004 -d &
+fi

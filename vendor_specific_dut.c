@@ -694,6 +694,7 @@ void mxl_generate_vendor_config(char *output, int size, struct packet_wrapper *w
                                "wpa_key_mgmt=SAE\n"
                                "auth_algs=1\n"
                                "ieee80211w=2\n"
+                               "max_bss=3\n"
                                "bss=%s\n", /* start config section for first functional VAP */
                  HAPD_CTRL_PATH_DEFAULT, wlanp->ifname, wlanp->ifname, buffer, wlanp->ifname);
     }

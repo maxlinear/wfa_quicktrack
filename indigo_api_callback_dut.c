@@ -699,6 +699,7 @@ static int generate_hostapd_config(char *output, int output_size, struct packet_
 	//NOTE: QuickTracks does not send any TLV for ocv and expects it OOB if declared in options
 	//TODO: Force compliation of OCV feature in main image hostapd with #CONFIG_OCV=y
     strcat(output, "#ocv=1\n");
+    strcat(output, "disable_pbac=1\n"); /* pre 802.11-2020 PBAC fails in R2.2 onwards */
 
     if (is_6g_only) {
         if (chwidthset == 0) {
@@ -1348,6 +1349,9 @@ static int get_mac_addr_handler(struct packet_wrapper *req, struct packet_wrappe
         get_key_value(mac_addr, response, "address");
     } else {
 #if HOSTAPD_SUPPORT_MBSSID
+#ifdef _MXL_
+        mxl_vendor_get_bss_values(bss_info.identifier, wlan->hapd_bss_id, connected_ssid, mac_addr, response);
+#else
         if(bss_info.identifier >= 0) {
             sprintf(buff, "ssid[%d]", wlan->hapd_bss_id);
             get_key_value(connected_ssid, response, buff);
@@ -1357,6 +1361,7 @@ static int get_mac_addr_handler(struct packet_wrapper *req, struct packet_wrappe
             get_key_value(connected_ssid, response, "ssid[0]");
             get_key_value(mac_addr, response, "bssid[0]");
         }
+#endif /* _MXL_ */
 #else
         get_key_value(connected_ssid, response, "ssid[0]");
         get_key_value(mac_addr, response, "bssid[0]");
@@ -3375,42 +3380,6 @@ static int start_wps_ap_handler(struct packet_wrapper *req, struct packet_wrappe
     struct tlv_hdr *tlv = NULL;
 	char local_ip[256];
 
-    /* Find network interface. If P2P Group or bridge exists, then use it. Otherwise, it uses the initiation value. */
-    memset(local_ip, 0, sizeof(local_ip));
-    if (get_p2p_group_if(if_name, sizeof(if_name)) == 0 && find_interface_ip(local_ip, sizeof(local_ip), if_name)) {
-        indigo_logger(LOG_LEVEL_DEBUG, "use %s", if_name);
-    } else if (find_interface_ip(local_ip, sizeof(local_ip), get_wlans_bridge())) {
-        indigo_logger(LOG_LEVEL_DEBUG, "use %s", get_wlans_bridge());
-    } else if (find_interface_ip(local_ip, sizeof(local_ip), get_wireless_interface())) {
-        indigo_logger(LOG_LEVEL_DEBUG, "use %s", get_wireless_interface());
-    } else {
-        indigo_logger(LOG_LEVEL_ERROR, "No available interface, Attempt Recovery");
-
-        get_wireless_interface_info(0, 0);
-
-        //ATTEMPT RECOVERY
-        if (!recovery_ip_if)
-        {
-            goto done;
-        }
-        /* Release IP address from interface */
-        reset_interface_ip(recovery_ip_if);
-        /* Bring up interface */
-        sleep(2);
-        control_interface(recovery_ip_if, "up");
-        /* Set IP address with network mask */
-        set_interface_ip(recovery_ip_if, recovery_ip_addr);
-        sleep(1);
-        if (find_interface_ip(local_ip, sizeof(local_ip), recovery_ip_if)) {
-            indigo_logger(LOG_LEVEL_DEBUG, "Recovery of %s passed", recovery_ip_if);
-        }
-        else {
-            indigo_logger(LOG_LEVEL_DEBUG, "Recovery of %s failed", recovery_ip_if);
-            goto done;
-        }
-        //END ATTEMPT RECOVERY
-    }
-
     memset(buffer, 0, sizeof(buffer));
     tlv = find_wrapper_tlv_by_id(req, TLV_PIN_CODE);
     if (tlv) {
@@ -3420,7 +3389,7 @@ static int start_wps_ap_handler(struct packet_wrapper *req, struct packet_wrappe
         /* Please implement the wsc pin validation function to
          * identify the invalid PIN code and DONOT start wps.
          * */
-#define WPS_PIN_VALIDATION_FILE "/tmp/pin_checksum.sh"
+        #define WPS_PIN_VALIDATION_FILE "/tmp/pin_checksum.sh"
         int len = 0, is_valid = 0;
         char pipebuf[S_BUFFER_LEN];
         char *parameter[] = {"sh", WPS_PIN_VALIDATION_FILE, pin_code, NULL};
@@ -3605,7 +3574,11 @@ static int get_wsc_cred_handler(struct packet_wrapper *req, struct packet_wrappe
     }
 
     for (i = 0; i < count; i++) {
+#ifdef _MXL_
+        pos = strstr(mxl_config_get_first_vap(data, role), p_cfg[i].tok);
+#else
         pos = strstr(data, p_cfg[i].tok);
+#endif
         if (pos) {
             pos += strlen(p_cfg[i].tok);
             if (*pos == '"') {
