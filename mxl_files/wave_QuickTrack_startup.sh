@@ -5,6 +5,7 @@
 . "$SCRIPTS_PATH/common_utils.sh"
 
 ROLE=$1
+BOARD=`cat /proc/device-tree/model | cut -d"," -f2`
 
 if [ "$ROLE" != "afc" ]; then
         echo "bring down hostapd and app's"
@@ -55,19 +56,27 @@ if [ "$ROLE" != "afc" ]; then
                         #echo "ZWDFS"
                         continue
                 fi
-                if [ `iw $phy info | grep -c "* 6..... MHz"` -gt 0 ]
+                iw_phy2_info=`iw $phy info | grep -c "* 6..... MHz"`
+                iw_phy1_info=`iw $phy info | grep -c "* 5..... MHz"`
+                iw_phy0_info=`iw $phy info | grep -c "* 24.... MHz"`
+                if [ "$BOARD" == "osp-tb341-v2" ]; then
+                        iw_phy2_info=`iw $phy info | grep -c "* 6... MHz"`
+                        iw_phy1_info=`iw $phy info | grep -c "* 5... MHz"`
+                        iw_phy0_info=`iw $phy info | grep -c "* 24.. MHz"`
+                fi
+                if [ $iw_phy2_info -gt 0 ]
                 then
                         #echo 6
                         iw phy $phy interface add wlan4 type managed
                         radio_mac_addr=`update_mac_address wlan4`
                         ifconfig wlan4 hw ether $radio_mac_addr
-                elif [ `iw $phy info | grep -c "* 5..... MHz"` -gt 0 ]
+                elif [ $iw_phy1_info -gt 0 ]
                 then
                         #echo 5
                         iw phy $phy interface add wlan2 type managed
                         radio_mac_addr=`update_mac_address wlan2`
                         ifconfig wlan2 hw ether $radio_mac_addr
-                elif [ `iw $phy info | grep -c "* 24.... MHz"` -gt 0 ]
+                elif [ $iw_phy0_info -gt 0 ]
                 then
                         # echo 2
                         iw phy $phy interface add wlan0 type managed
