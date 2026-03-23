@@ -441,7 +441,7 @@ static int afcd_configure_handler(struct packet_wrapper *req, struct packet_wrap
             indigo_logger(LOG_LEVEL_DEBUG, "Configure DUT to 320MHz bandwidth");
 #ifdef UPDK
             system("sleep 10");
-            system("ubus-cli WiFi.Radio.3.OperatingChannelBandwidth='320MHz-1'");
+            system("ubus-cli WiFi.Radio.3.OperatingChannelBandwidth='320MHz-2'");
             system("sleep 20");
             system("ubus-cli WiFi.Radio.3.Vendor.ACS.AcsFallbackPrimaryChan=31");
             system("ubus-cli WiFi.Radio.3.Vendor.ACS.AcsFallbackSecChan=63");
@@ -461,6 +461,11 @@ static int afcd_configure_handler(struct packet_wrapper *req, struct packet_wrap
             system("uci set wireless.radio4.htmode='EHT320_0'; uci commit wireless; wifi");
 #endif
         }
+
+        /* set control and management pkts to low power for LPI power management */
+        system("iw wlan4 iwlwav sFixedPower 32 255 12 3");
+        sleep(2);
+        system("iw wlan4 iwlwav sFixedPower 32 255 12 5");
     } else { 
         //If no BW set, default to 20MHz
         indigo_logger(LOG_LEVEL_DEBUG, "NO BW set so, configure DUT to 20MHz bandwidth");
@@ -482,12 +487,23 @@ static int afcd_configure_handler(struct packet_wrapper *req, struct packet_wrap
         system("uci set wireless.radio4.acs_strict_chanlist='1'");
         system("uci set wireless.radio4.htmode='VHT20'; uci commit wireless; wifi");
 #endif
-        if(prior_power_cycle) {
+
+        /* set control and management pkts to low power for LPI power management */
+        system("iw wlan4 iwlwav sFixedPower 32 255 12 3");
+        sleep(2);
+        system("iw wlan4 iwlwav sFixedPower 32 255 12 5");
+
+	if(prior_power_cycle) {
             //Wifi must stay down after power cycle command
             sleep(10);
             indigo_logger(LOG_LEVEL_DEBUG, "Remove standard power");
 #ifdef UPDK
             system("/etc/init.d/prplmesh_whm stop");
+            sleep(10);
+            system("/etc/init.d/prplmesh_whm start");
+            sleep(10);
+            system("/etc/init.d/prplmesh_whm start");
+            sleep(20);
 #else
             system("wifi down");
 #endif
@@ -566,17 +582,19 @@ static int afcd_operation_handler(struct packet_wrapper *req, struct packet_wrap
             wpa_ctrl_request(w, cmd, strlen(cmd), w_response, &resp_len, NULL);
             wpa_ctrl_close(w);
         }
-        /* Inteface must stay alive but in low power to await settings */
-        system("iw wlan4 iwlwav sFixedPower 32 255 12 1");
-
     }
     tlv = find_wrapper_tlv_by_id(req, TLV_AFC_SEND_SPECTRUM_REQ);
     if (tlv) {
 
         //Workaround for afc driver improperly adjusting from allowed to disallowed state on the same channel
 #ifdef UPDK
-        system("/etc/init.d/prplmesh_whm restart");
-        sleep(40);
+        /* instead of "restart" command, WA for UPDK9.1.100 as below */
+        system("/etc/init.d/prplmesh_whm stop");
+        sleep(10);
+        system("/etc/init.d/prplmesh_whm start");
+        sleep(20);
+        system("/etc/init.d/prplmesh_whm start");
+        sleep(20);
 #else
         system("wifi");
 #endif
@@ -634,7 +652,7 @@ static int afcd_operation_handler(struct packet_wrapper *req, struct packet_wrap
     tlv = find_wrapper_tlv_by_id(req, TLV_AFC_POWER_CYCLE);
     if (tlv) {
         indigo_logger(LOG_LEVEL_DEBUG, "Trigger power cycle");
-        prior_power_cycle = 1;
+        prior_power_cycle = 0;
         /* Vendor specific: add in vendor_specific_afc.c */
 
         //Open default hostapd
@@ -651,9 +669,14 @@ static int afcd_operation_handler(struct packet_wrapper *req, struct packet_wrap
             wpa_ctrl_request(w, cmd, strlen(cmd), w_response, &resp_len, NULL);
             wpa_ctrl_close(w);
         }
-        /* Inteface must stay alive but in low power to await settings */
-        system("iw wlan4 iwlwav sFixedPower 32 255 12 1");
 
+        /* instead of "restart" command, WA for UPDK9.1.100 as below */
+        system("/etc/init.d/prplmesh_whm stop");
+        sleep(10);
+        system("/etc/init.d/prplmesh_whm start");
+        sleep(10);
+        system("/etc/init.d/prplmesh_whm start");
+        sleep(20);
     }
     tlv = find_wrapper_tlv_by_id(req, TLV_AFC_SEND_TEST_FRAME);
     if (tlv) {
@@ -670,6 +693,10 @@ static int afcd_operation_handler(struct packet_wrapper *req, struct packet_wrap
         } else if (atoi(frame_bw) == 4) {
             indigo_logger(LOG_LEVEL_DEBUG, "Trigger DUT to send test frames for 320MHz bandwidth");
         }
+        /* Inteface must stay alive but in low power to await settings */
+        system("iw wlan4 iwlwav sFixedPower 32 255 12 3");
+        sleep(2);
+        system("iw wlan4 iwlwav sFixedPower 32 255 12 5");
     }
     tlv = find_wrapper_tlv_by_id(req, TLV_AFC_CONNECT_SP_AP);
     if (tlv) {
@@ -695,8 +722,6 @@ static int afcd_operation_handler(struct packet_wrapper *req, struct packet_wrap
 
         system(afc_request_command_str);
         sleep(1);
-        /* Inteface must stay alive but in low power to await settings */
-        system("iw wlan4 iwlwav sFixedPower 32 255 12 1");
     }
 
     fill_wrapper_message_hdr(resp, API_CMD_RESPONSE, req->hdr.seq);

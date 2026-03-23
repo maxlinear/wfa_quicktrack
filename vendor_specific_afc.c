@@ -31,12 +31,14 @@
 /* Be invoked when start controlApp */
 void vendor_init() {
 	/* Bring 6 GHz down to 1 Antenna and limit max power to match LitePoint threshold */
-    system("iw wlan4 iwlwav sCoCPower 0 1 1");
+    //system("iw wlan4 iwlwav sCoCPower 0 1 1");
 	//system("iw wlan4 iwlwav sPowerSelection 3");
-	system("iw wlan4 iwlwav sFixedPower 32 255 12 1");
+	//system("iw wlan4 iwlwav sFixedPower 32 255 12 1");
 	//Disable wlan0 and wlan2 to avoid interferrence
 	//Add change to force verify_cert to 1
 	//Add check and change to append 192.165.100.15 testserver.wfatestorg.org to /etc/hosts
+    /* disable power adaptation to follow FCC power setting */
+    system("iw dev wlan4 iwlwav sDoSimpleCLI 3 62 0 0");
 }
 
 /* Be invoked when terminate controlApp */
