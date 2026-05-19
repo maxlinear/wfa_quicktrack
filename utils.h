@@ -23,6 +23,8 @@
 #define BUFFER_LEN                1536
 #define L_BUFFER_LEN              8192
 
+#define MAX_PACKET_SIZE           10000
+
 #define TOOL_POST_PORT 8080
 #define HAPD_UPLOAD_API "/upload-platform-hapd-log"
 #define WPAS_UPLOAD_API "/upload-platform-wpas-log"
@@ -59,7 +61,9 @@ enum {
     PHYMODE_11NA = 5,
     PHYMODE_11AC = 6,
     PHYMODE_11AXG = 7,
-    PHYMODE_11AXA = 8
+    PHYMODE_11AXA = 8,
+    PHYMODE_11AX = 9,
+    PHYMODE_11BE = 10,
 };
 
 enum {
@@ -81,6 +85,21 @@ enum {
     OP_CLASS_6G_40 = 132,
     OP_CLASS_6G_80 = 133,
     OP_CLASS_6G_160 = 134
+};
+
+enum wlan_fc_stype_mgmt {
+    ASSOC_REQ = 0,
+    ASSOC_RESP = 1,
+    REASSOC_REQ = 2,
+    REASSOC_RESP = 3,
+    PROBE_REQ = 4,
+    PROBE_RESP = 5,
+    BEACON = 8,
+    ATIM = 9,
+    DISASSOC = 10,
+    AUTH = 11,
+    DEAUTH = 12,
+    ACTION = 13
 };
 
 struct sta_platform_config {
@@ -106,6 +125,9 @@ struct interface_info {
     int transmitter;
     int hapd_bss_id;
     char hapd_conf_file[64];
+    char link_conf_file[64];
+    int link_id;
+    int link_band;
 };
 
 struct bss_identifier_info {
@@ -113,6 +135,7 @@ struct bss_identifier_info {
     int band;
     int mbssid_enable;
     int transmitter;
+    int mld_link;
 };
 
 struct loopback_info {
@@ -123,7 +146,7 @@ struct loopback_info {
     int pkt_type;
     int pkt_size;
     char target_ip[64];
-    char message[1600];
+    char message[MAX_PACKET_SIZE];
 };
 
 /* log and file API */
@@ -149,6 +172,9 @@ int send_icmp_data(char *target_ip, int packet_count, int packet_size, double ra
 char* get_wlans_bridge();
 int set_wlans_bridge(char* br);
 int is_bridge_created();
+void set_standalone_ip_mode(int mode);
+int is_standalone_ip_mode();
+void set_dfs_wait_needed(int channel, int chwidth);
 int create_bridge(char *br);
 int add_interface_to_bridge(char *br, char *interface);
 int reset_bridge(char *br);
@@ -159,6 +185,7 @@ int add_wireless_interface(char *ifname);
 int delete_wireless_interface(char *ifname);
 void bridge_init(char *br);
 void detect_del_arp_entry(char *ip);
+int add_arp_entry(char *ip, char *mac, char *ifname);
 
 #define DEBUG_LEVEL_DISABLE             0
 #define DEBUG_LEVEL_BASIC               1
@@ -202,7 +229,7 @@ int get_service_port();
 int set_service_port(int port);
 char* get_default_wireless_interface_info();
 int clear_interfaces_resource();
-char* get_all_hapd_conf_files(int* swap_hosatpd);
+char* get_all_hapd_conf_files(int *swap_hostapd);
 
 void parse_bss_identifier(int bss_identifier, struct bss_identifier_info* bss);
 struct interface_info* assign_wireless_interface_info(struct bss_identifier_info *bss);

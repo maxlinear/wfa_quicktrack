@@ -57,6 +57,7 @@ struct interface_info* default_interface;
 static struct loopback_info loopback = {};
 /* bridge used for wireless interfaces */
 char wlans_bridge[32];
+static int dfs_wait_flag = 0;
 
 #if UPLOAD_TC_APP_LOG
 /* per test case control app log */
@@ -290,11 +291,11 @@ int loopback_socket = 0;
 
 static void loopback_server_receive_message(int sock, void *eloop_ctx, void *sock_ctx) {
     struct sockaddr_storage from;
-    unsigned char buffer[BUFFER_LEN];
+    unsigned char buffer[MAX_PACKET_SIZE];
     int fromlen, len;
 
     fromlen = sizeof(from);
-    len = recvfrom(sock, buffer, BUFFER_LEN, 0, (struct sockaddr *) &from, &fromlen);
+    len = recvfrom(sock, buffer, MAX_PACKET_SIZE, 0, (struct sockaddr *) &from, &fromlen);
     if (len < 0) {
         indigo_logger(LOG_LEVEL_ERROR, "Loopback server recvfrom[server] error");
         return ;
@@ -403,7 +404,7 @@ void setup_icmphdr(u_int8_t type, u_int8_t code, u_int16_t id,
 
 void send_one_loopback_icmp_packet(struct loopback_info *info) {
     int n;
-    char server_reply[1600];
+    char server_reply[MAX_PACKET_SIZE];
     struct in_addr insaddr;
     struct icmphdr *icmphdr, *recv_icmphdr;
     struct iphdr *recv_iphdr;
@@ -449,7 +450,7 @@ done:
 }
 
 void send_one_loopback_udp_packet(struct loopback_info *info) {
-    char server_reply[1600];
+    char server_reply[MAX_PACKET_SIZE];
     ssize_t recv_len = 0, send_len = 0;
 
     memset(&server_reply, 0, sizeof(server_reply));
@@ -505,11 +506,12 @@ int stop_loopback_data(int *pkt_sent)
     return loopback.pkt_rcv;
 }
 
+#ifndef _TEST_SNIFFER_
 int send_udp_data(char *target_ip, int target_port, int packet_count, int packet_size, double rate) {
     int s = 0, i = 0;
     struct sockaddr_in addr;
     int pkt_sent = 0, pkt_rcv = 0;
-    char message[1600], server_reply[1600], ifname[32];
+    char message[MAX_PACKET_SIZE], server_reply[MAX_PACKET_SIZE], ifname[32];
     ssize_t recv_len = 0, send_len = 0;
     struct timeval timeout;
 
@@ -610,7 +612,7 @@ int send_udp_data(char *target_ip, int target_port, int packet_count, int packet
 int send_icmp_data(char *target_ip, int packet_count, int packet_size, double rate)
 {
     int n, sock, i;
-    char buf[1600], server_reply[1600], ifname[32];
+    char buf[MAX_PACKET_SIZE], server_reply[MAX_PACKET_SIZE], ifname[32];
     struct sockaddr_in addr;
     struct in_addr insaddr;
     struct icmphdr *icmphdr, *recv_icmphdr;
@@ -710,16 +712,35 @@ int send_icmp_data(char *target_ip, int packet_count, int packet_size, double ra
     close(sock);
     return pkt_rcv;
 }
+#endif
 
 int send_broadcast_arp(char *target_ip, int *send_count, int rate) {
-    char buffer[S_BUFFER_LEN];
+    char buffer[S_BUFFER_LEN], ifname[16];
     FILE *fp;
     int recv = 0;
 
+    if (*send_count == -1) {
+        system("killall arping 1>/dev/null 2>/dev/null");
+        indigo_logger(LOG_LEVEL_INFO, "Stop sending continuous ARP requests");
+        return 0;
+    }
+
+    if (is_bridge_created()) {
+        snprintf(ifname, sizeof(ifname), "%s", get_wlans_bridge());
+    } else {
+        snprintf(ifname, sizeof(ifname), "%s", get_wireless_interface());
+    }
 #ifdef _OPENWRT_
-    snprintf(buffer, sizeof(buffer), "arping -I %s %s -c %d -b | grep broadcast", get_wireless_interface(), target_ip, *send_count);
+    snprintf(buffer, sizeof(buffer), "arping -I %s %s -c %d -b | grep broadcast", ifname, target_ip, *send_count);
 #else
-    snprintf(buffer, sizeof(buffer), "arping -i %s %s -c %d -W %d | grep packet", get_wireless_interface(), target_ip, *send_count, rate);
+    if (*send_count == 0) {
+        snprintf(buffer, sizeof(buffer), "arping -i %s %s -W %d -q &", ifname, target_ip, rate);
+        system(buffer);
+        indigo_logger(LOG_LEVEL_INFO, "Start sending continuous ARP requests");
+        return 0;
+    } else {
+        snprintf(buffer, sizeof(buffer), "arping -i %s %s -c %d -W %d | grep packet", ifname, target_ip, *send_count, rate);
+    }
 #endif
     fp = popen(buffer, "r");
     if (fp == NULL)
@@ -792,6 +813,15 @@ int set_mac_address(char *ifname, char *mac) {
 }
 
 int bridge_created = 0;
+static int standalone_ip_mode = 0;
+
+void set_standalone_ip_mode(int mode) {
+    standalone_ip_mode = mode;
+}
+
+int is_standalone_ip_mode() {
+    return standalone_ip_mode;
+}
 
 char* get_wlans_bridge() {
     return wlans_bridge;
@@ -808,12 +838,57 @@ int is_bridge_created() {
     return bridge_created;
 }
 
+#define DFS_BRIDGE_WAIT_SECONDS 70
+
+static const int dfs_channel_list[] = {
+    52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144
+};
+
+static int is_dfs_channel(int channel)
+{
+    int i;
+    for (i = 0; i < (int)(sizeof(dfs_channel_list) / sizeof(dfs_channel_list[0])); i++) {
+        if (channel == dfs_channel_list[i])
+            return 1;
+    }
+    return 0;
+}
+
+void set_dfs_wait_needed(int channel, int chwidth)
+{
+    if (is_dfs_channel(channel) || (channel >= 36 && channel <= 48 && chwidth == 2)) {
+        indigo_logger(LOG_LEVEL_INFO,
+                      "DFS wait: channel=%d chwidth=%d, will sleep %ds before bridge addif",
+                      channel, chwidth, DFS_BRIDGE_WAIT_SECONDS);
+        dfs_wait_flag = 1;
+    }
+}
+
+static int is_dfs_wait_needed(void)
+{
+    return dfs_wait_flag;
+}
+
 void bridge_init(char *br) {
+#ifdef SUPPORT_THROUGHPUT_TEST
+    /* R2 standalone workaround: if standalone_ip_mode is set, the test IP was
+     * assigned directly to wlan (not bridge). Skip adding wlan to bridge here
+     * to avoid overwriting the control IP on br-lan.
+     * For WPS ER tests, standalone_ip_mode is cleared by mxl_create_bridge_and_add_iface
+     * which switches to br-wlans, so this skip won't apply to ER tests. */
+    if (standalone_ip_mode) {
+        return;
+    }
+    /* Indicate using bridge if to send data */
+    bridge_created = 1;
+    add_all_wireless_interface_to_bridge(br);
+#else
     /* Create bridge for multiple VAPs */
     if (configured_interface_count >= 2) {
         create_bridge(br);
         add_all_wireless_interface_to_bridge(br);
     }
+#endif
 }
 
 int create_bridge(char *br) {
@@ -845,15 +920,51 @@ int add_interface_to_bridge(char *br, char *ifname) {
     return 0;
 }
 
+static int delete_interface_from_bridge(char *br, char *ifname) {
+    char cmd[S_BUFFER_LEN];
+
+    /* Delete interface from bridge */
+    sprintf(cmd, "brctl delif %s %s", br, ifname);
+    system(cmd);
+    printf("%s\n", cmd);
+
+    return 0;
+}
+
+static int delete_all_wireless_interface_from_bridge(char *br) {
+    int i;
+
+    for (i = 0; i < interface_count; i++) {
+        if (interfaces[i].identifier != UNUSED_IDENTIFIER) {
+            delete_interface_from_bridge(br, interfaces[i].ifname);
+        }
+    }
+
+    return 0;
+}
+
 int reset_bridge(char *br) {
+#ifdef SUPPORT_THROUGHPUT_TEST
+    delete_all_wireless_interface_from_bridge(br);
+    if (strcmp(br, BRIDGE_WLANS) != 0) {
+        /* Delete br-wlans created for MBSSID and restore default */
+        char cmd[S_BUFFER_LEN];
+        control_interface(br, "down");
+        sprintf(cmd, "brctl delbr %s", br);
+        system(cmd);
+        set_wlans_bridge(BRIDGE_WLANS);
+    }
+#else
     char cmd[S_BUFFER_LEN];
 
     /* Bring down bridge */
     control_interface(br, "down");
     sprintf(cmd, "brctl delbr %s", br);
     system(cmd);
+#endif
 
     bridge_created = 0;
+    dfs_wait_flag = 0;
 
     return 0;
 }
@@ -882,7 +993,7 @@ int control_interface(char *ifname, char *op) {
     /* sprintf(cmd, "ifconfig %s %s", ifname, op); */
     sprintf(cmd, "ip link set %s %s", ifname, op);
     system(cmd);
-
+ 
     return 0;
 }
 
@@ -893,7 +1004,7 @@ int set_interface_ip(char *ifname, char *ip) {
     /* sprintf(cmd, "ifconfig %s %s", ifname, ip); */
     sprintf(cmd, "ip addr add %s dev %s", ip, ifname);
     system(cmd);
-
+ 
     return 0;
 }
 
@@ -903,6 +1014,14 @@ int reset_interface_ip(char *ifname) {
     /* sprintf(cmd, "ifconfig %s 0.0.0.0", ifname); */
     sprintf(cmd, "ip addr flush dev %s", ifname);
     return system(cmd);
+}
+
+int add_arp_entry(char *ip, char *mac, char *ifname) {
+    char buffer[S_BUFFER_LEN];
+
+    memset(buffer, 0, sizeof(buffer));
+    snprintf(buffer, sizeof(buffer), "ip neigh replace %s lladdr %s dev %s", ip, mac, ifname);
+    return system(buffer);
 }
 
 void detect_del_arp_entry(char *ip) {
@@ -932,6 +1051,9 @@ void detect_del_arp_entry(char *ip) {
 
 int add_all_wireless_interface_to_bridge(char *br) {
     int i;
+
+    if (is_dfs_wait_needed())
+        sleep(DFS_BRIDGE_WAIT_SECONDS);
 
     for (i = 0; i < interface_count; i++) {
         if (interfaces[i].identifier != UNUSED_IDENTIFIER) {
@@ -966,8 +1088,18 @@ struct interface_info* assign_wireless_interface_info(struct bss_identifier_info
     int i;
 
     for (i = 0; i < interface_count; i++) {
-        if ((interfaces[i].band == bss->band) && 
-             (interfaces[i].identifier == UNUSED_IDENTIFIER)) {
+        /* Find mld main interface and create link conf */
+        if ((interfaces[i].band != bss->band) &&
+            (interfaces[i].identifier != UNUSED_IDENTIFIER) && bss->mld_link &&
+            (interfaces[i].link_id == UNUSED_IDENTIFIER)) {
+            snprintf(interfaces[i].link_conf_file, sizeof(interfaces[i].link_conf_file),
+                     "%s/hostapd_%s_link.conf", HAPD_CONF_FILE_DEFAULT_PATH, interfaces[i].ifname);
+            interfaces[i].link_id = bss->identifier;
+            interfaces[i].link_band = bss->band;
+            return &interfaces[i];
+        } else if ((interfaces[i].band == bss->band) &&
+             (interfaces[i].identifier == UNUSED_IDENTIFIER) &&
+             (!bss->mld_link)) {
             configured_interface_count++;
             interfaces[i].identifier = bss->identifier;
             interfaces[i].mbssid_enable = bss->mbssid_enable;
@@ -1174,7 +1306,7 @@ void set_wpas_debug_level(int level) {
 
 char* get_wpas_debug_arguments() {
     if (wpas_debug_level == DEBUG_LEVEL_ADVANCED) {
-        return "-ddd";
+        return "-dddK";
     } else if (wpas_debug_level == DEBUG_LEVEL_BASIC) {
         return "-d";
     }
@@ -1185,6 +1317,8 @@ int add_wireless_interface_info(int band, int bssid, char *name) {
     interfaces[interface_count].band = band;
     interfaces[interface_count].bssid = -1;
     interfaces[interface_count].identifier = UNUSED_IDENTIFIER;
+    interfaces[interface_count].link_id = UNUSED_IDENTIFIER;
+    memset(interfaces[interface_count].link_conf_file, 0, sizeof(interfaces[interface_count].link_conf_file));
     strcpy(interfaces[interface_count++].ifname, name);
     return 0;
 }
@@ -1267,6 +1401,7 @@ void parse_bss_identifier(int bss_identifier, struct bss_identifier_info* bss) {
     bss->identifier = (bss_identifier & 0xF0) >> 4;
     bss->mbssid_enable = (bss_identifier & 0x100) >> 8;
     bss->transmitter = (bss_identifier & 0x200) >> 9;
+    bss->mld_link = (bss_identifier & 0x400) >> 10;
     return;
 }
 
@@ -1276,6 +1411,10 @@ int clear_interfaces_resource() {
     {
         if (interfaces[i].identifier != UNUSED_IDENTIFIER) {
             interfaces[i].identifier = UNUSED_IDENTIFIER;
+        }
+        if (interfaces[i].link_conf_file[0] != 0) {
+            memset(interfaces[i].link_conf_file, 0, sizeof(interfaces[i].link_conf_file));
+            interfaces[i].link_id = UNUSED_IDENTIFIER;
         }
     }
     configured_interface_count = 0;
@@ -1326,8 +1465,18 @@ char* get_all_hapd_conf_files(int *swap_hapd) {
             }
 #endif
             valid_id_cnt++;
+            /* There is segmentation fault in hostapd when 5G bss is the first
+               link and 5G initialization will be completed in a callback */
+            if (interfaces[i].link_conf_file[0] != 0 && interfaces[i].link_band != BAND_5GHZ) {
+                strncat(conf_files, interfaces[i].link_conf_file, strlen(interfaces[i].link_conf_file));
+                strcat(conf_files, " ");
+            }
             strncat(conf_files, interfaces[i].hapd_conf_file, strlen(interfaces[i].hapd_conf_file));
             strcat(conf_files, " ");
+            if (interfaces[i].link_conf_file[0] != 0 && interfaces[i].link_band == BAND_5GHZ) {
+                strncat(conf_files, interfaces[i].link_conf_file, strlen(interfaces[i].link_conf_file));
+                strcat(conf_files, " ");
+            }
         }
     }
     if (valid_id_cnt)
@@ -1416,7 +1565,7 @@ int get_center_freq_index(int channel, int width) {
     } else if (width == 2) {
         if (channel >= 36 && channel <= 64) {
             return 50;
-        } else if (channel >= 36 && channel <= 64) {
+        } else if (channel >= 100 && channel <= 128) {
             return 114;
         }
     }
@@ -1430,6 +1579,8 @@ int get_6g_center_freq_index(int channel, int width) {
         chwidth = 80;
     } else if (width == 2) {
         chwidth = 160;
+    } else if (width == 320) {
+        chwidth = 320;
     } else {
         return channel;
     }

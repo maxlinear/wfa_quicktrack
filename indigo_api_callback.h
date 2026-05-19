@@ -256,6 +256,7 @@ static int trigger_ap_channel_switch(struct packet_wrapper *req, struct packet_w
 static int send_ap_arp_handler(struct packet_wrapper *req, struct packet_wrapper *resp);
 static int start_wps_ap_handler(struct packet_wrapper *req, struct packet_wrapper *resp);
 static int configure_ap_wsc_handler(struct packet_wrapper *req, struct packet_wrapper *resp);
+static int rekey_ap_gtk_handler(struct packet_wrapper *req, struct packet_wrapper *resp);
 /* STA */
 static int stop_sta_handler(struct packet_wrapper *req, struct packet_wrapper *resp);
 static int configure_sta_handler(struct packet_wrapper *req, struct packet_wrapper *resp);
@@ -293,6 +294,9 @@ static int sniffer_start_handler(struct packet_wrapper *req, struct packet_wrapp
 static int sniffer_stop_handler(struct packet_wrapper *req, struct packet_wrapper *resp);
 static int sniffer_filter_handler(struct packet_wrapper *req, struct packet_wrapper *resp);
 static int sniffer_upload_file_handler(struct packet_wrapper *req, struct packet_wrapper *resp);
+/* TG (Traffic Generator) */
+static int start_tg_server_handler(struct packet_wrapper *req, struct packet_wrapper *resp);
+static int stop_tg_server_handler(struct packet_wrapper *req, struct packet_wrapper *resp);
 /* AFC */
 static int afcd_configure_handler(struct packet_wrapper *req, struct packet_wrapper *resp);
 static int afcd_operation_handler(struct packet_wrapper *req, struct packet_wrapper *resp);

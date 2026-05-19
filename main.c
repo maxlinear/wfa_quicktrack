@@ -245,7 +245,7 @@ static int parse_parameters(int argc, char *argv[]) {
 #ifdef DEFAULT_APP_INTERFACES_PARAMS
 #ifndef _AFC_
 #ifdef _OPENWRT_
-        if (detect_third_radio())
+        if (detect_number_radio() != 2)
             snprintf(buf, sizeof(buf), "%s", DEFAULT_APP_6E_INTERFACES_PARAMS);
         else
 #endif /* _OPENWRT_ */
@@ -271,6 +271,11 @@ static int parse_parameters(int argc, char *argv[]) {
 
 static void handle_term(int sig, void *eloop_ctx, void *signal_ctx) {
     indigo_logger(LOG_LEVEL_INFO, "Signal %d received - terminating\n", sig);
+    eloop_terminate();
+}
+
+static void handle_sighup(int sig, void *eloop_ctx, void *signal_ctx) {
+    indigo_logger(LOG_LEVEL_INFO, "Signal %d received - hangup\n", sig);
     eloop_terminate();
     vendor_deinit();
 }
@@ -329,6 +334,7 @@ int main(int argc, char* argv[]) {
     /* Register SIGTERM */
     eloop_register_signal(SIGINT, handle_term, NULL);
     eloop_register_signal(SIGTERM, handle_term, NULL);
+    eloop_register_signal(SIGHUP, handle_sighup, NULL);
 
     /* Bind the service port and register to eloop */
     service_socket = control_socket_init(get_service_port());
@@ -345,6 +351,8 @@ int main(int argc, char* argv[]) {
         indigo_logger(LOG_LEVEL_INFO, "Close service port: %d", get_service_port());
         close(service_socket);
     }
+
+    vendor_deinit();
 
     return 0;
 }

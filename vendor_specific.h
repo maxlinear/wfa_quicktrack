@@ -52,6 +52,7 @@
 // 5(5G): first interface ath0, second interface ath01
 #define DEFAULT_APP_INTERFACES_PARAMS               "2:ath1,2:ath11,2:ath12,2:ath13,5:ath0,5:ath01,5:ath02,5:ath03"
 #define DEFAULT_APP_6E_INTERFACES_PARAMS            "6:ath0,6:ath01,6:ath02,6:ath03,5:ath1,5:ath11,5:ath12,5:ath13,2:ath2,2:ath21,2:ath22,2:ath23"
+#define WIFI7_PHY_INTERFACE                         "phy00"
 #endif /* _MXL_ */
 #ifdef _AFC_
 #ifdef UPDK 
@@ -74,14 +75,15 @@
 #define WPAS_EXEC_FILE_DEFAULT                      "/usr/local/bin/WFA-Hostapd-Supplicant/wpa_supplicant"
 #else /* Platform */
 #define WPAS_EXEC_FILE_DEFAULT                      "/usr/local/bin/WFA-Hostapd-Supplicant/wpa_supplicant_udp"
-
+#define WLANTEST_EXEC_FILE_DEFAULT                  "/usr/local/bin/WFA-Hostapd-Supplicant/wlantest"
+#define WLANTEST_CLI_EXEC_FILE_DEFAULT              "/usr/local/bin/WFA-Hostapd-Supplicant/wlantest_cli"
+#define WLANTEST_LOG_FILE                           "/tmp/wlantest.log"
 #endif /* _DUT_ */
 #define WPAS_CTRL_PATH_DEFAULT                      "/var/run/wpa_supplicant"
 #define WPAS_GLOBAL_CTRL_PATH_DEFAULT               "/var/run/wpa_supplicant/global" // not use wpas global before
 #define WPAS_LOG_FILE                               "/var/log/supplicant.log"
 
 #define HS20_OSU_CLIENT "/usr/local/bin/WFA-Hostapd-Supplicant/hs20-osu-client"
-
 #ifdef _AFC_
 #ifdef UPDK
 #define WIRELESS_INTERFACE_DEFAULT                  "wlan4.1"
@@ -89,12 +91,15 @@
 #define WIRELESS_INTERFACE_DEFAULT                  "wlan4.3"
 #endif /* UPDK */
 #else
+#define TG_EXEC_FILE_IPERF2                         "iperf"
+
 #define WIRELESS_INTERFACE_DEFAULT                  "wlan0"
 #endif /* _AFC_ */
+#define MONITOR_INTERFACE_DEFAULT                   "mon0"
 #define SERVICE_PORT_DEFAULT                        9004
 
 /* Default bridge for wireless interfaces */
-#define BRIDGE_WLANS                                "br-wlans"
+#define BRIDGE_WLANS                                "br-lan"
 
 #ifdef _WTS_OPENWRT_
 #define HOSTAPD_SUPPORT_MBSSID 0
@@ -103,10 +108,11 @@
  * hostapd support "multiple_bssid" configuration
  */
 #define HOSTAPD_SUPPORT_MBSSID 1
-#ifndef _MXL_
-#define HOSTAPD_SUPPORT_MBSSID_WAR
+
 #endif
-#endif
+
+/* Default Tool STA maximum number of cached scan results*/
+#define MAX_SCAN_ENTRY 1024
 
 /* Default DUT GO intent value */
 #define P2P_GO_INTENT 7
@@ -115,6 +121,8 @@
 void vendor_init();
 void vendor_deinit();
 void vendor_device_reset();
+
+#define SAE_PK_FILE_PATH "/vendor/wfa/"
 
 /**
  * wps settings retrieved with vendor-specific operations.
@@ -176,6 +184,7 @@ struct sta_driver_ops {
 
 extern const struct sta_driver_ops sta_driver_platform1_ops;
 extern const struct sta_driver_ops sta_driver_platform2_ops;
+extern const struct sta_driver_ops sta_driver_platform3_ops;
 
 /* Generic platform dependent APIs */
 int set_channel_width();
@@ -184,7 +193,7 @@ void set_phy_mode();
 
 #ifdef _OPENWRT_
 void openwrt_apply_radio_config(void);
-int detect_third_radio(void);
+int detect_number_radio(void);
 #endif
 
 void create_sta_interface();
@@ -198,11 +207,16 @@ int get_p2p_mac_addr(char *mac_addr, size_t size);
 int get_p2p_group_if(char *if_name, size_t size);
 int get_p2p_dev_if(char *if_name, size_t size);
 
+void get_monitor_if(char *if_name, size_t size);
+
 void start_dhcp_server(char *if_name, char *ip_addr);
 void stop_dhcp_server();
 void start_dhcp_client(char *if_name);
 void stop_dhcp_client();
 wps_setting* get_vendor_wps_settings(enum wps_device_role);
+
+void get_mld_link_mac(char *mac_addr, size_t size, char *band);
+int switch_mld_active_link();
 #endif
 #ifdef _MXL_
 #include "utils.h"

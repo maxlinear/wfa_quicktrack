@@ -48,9 +48,10 @@ struct indigo_api {
 #define API_AP_SEND_DISCONNECT                  0x1004
 #define API_AP_SET_PARAM                        0x1005
 #define API_AP_SEND_BTM_REQ                     0x1006
-#define API_AP_SEND_ARP_MSGS                    0x1007
 #define API_AP_START_WPS                        0x1008
 #define API_AP_CONFIGURE_WSC                    0x1009
+#define API_AP_REKEY_GTK                        0x100a
+#define API_AP_SET_MCS_RATES                    0x100b
 
 #define API_STA_ASSOCIATE                       0x2000
 #define API_STA_CONFIGURE                       0x2001
@@ -82,6 +83,11 @@ struct indigo_api {
 #define API_STA_SEND_ICON_REQ                   0x201b
 #define API_P2P_SET_EXT_LISTEN                  0x201c
 #define API_STA_ENABLE_WSC                      0x201d
+#define API_STA_INJECT_START                    0x201e
+#define API_STA_INJECT_FRAME                    0x201f
+#define API_STA_INJECT_STOP                     0x2020
+#define API_TG_SERVER_START                     0x2021
+#define API_TG_SERVER_STOP                      0x2022
 
 #define API_SNIFFER_START                       0x3000
 #define API_SNIFFER_STOP                        0x3001
@@ -102,7 +108,7 @@ struct indigo_api {
 #define API_STOP_DHCP                           0x500b
 #define API_GET_WSC_PIN                         0x500c
 #define API_GET_WSC_CRED                        0x500d
-
+#define API_SEND_ARP_MSGS                       0x500e
 #define API_AFCD_CONFIGURE                      0x6001
 #define API_AFCD_OPERATION                      0x6002
 #define API_AFCD_GET_INFO                       0x6003
@@ -167,6 +173,8 @@ struct indigo_api {
 #define TLV_PHASE1                              0x0043
 #define TLV_CLIENT_CERT                         0x0044
 #define TLV_PRIVATE_KEY                         0x0045
+#define TLV_EAPOL_M3_ELEMENTS                   0x0046
+#define TLV_GTK_KDE_RANDOM_RESERVED_BITS        0x0047
 #define TLV_STA_POWER_SAVE                      0x0052
 #define TLV_STATIC_IP                           0x0055
 #define TLV_DEBUG_LEVEL                         0x0057
@@ -178,6 +186,9 @@ struct indigo_api {
 #define TLV_ARP_TRANSMISSION_RATE               0x005f
 #define TLV_ARP_TARGET_IP                       0x0060
 #define TLV_ARP_FRAME_COUNT                     0x0062
+#define TLV_FRAME_TYPE                          0x0063
+#define TLV_ACTION_CATEGORY                     0x0064
+#define TLV_ACTION_CODE                         0x0065
 #define TLV_PACKET_COUNT                        0x0067
 #define TLV_PACKET_TYPE                         0x0068
 #define TLV_PACKET_RATE                         0x0069
@@ -214,6 +225,7 @@ struct indigo_api {
 #define TLV_OWE_GROUPS                          0x008e
 #define TLV_STA_OWE_GROUP                       0x008f
 #define TLV_HE_MU_EDCA                          0x0090
+#define TLV_PROTECTION_TYPE                     0x0091
 #define TLV_RSNXE_OVERRIDE_EAPOL                0x0092
 #define TLV_TRANSITION_DISABLE                  0x0093
 #define TLV_SAE_CONFIRM_IMMEDIATE               0x0094
@@ -290,7 +302,64 @@ struct indigo_api {
 #define TLV_CAPTURE_OUTFILE                     0x00de
 #define TLV_TP_IP_ADDRESS                       0x00df
 #define TLV_WPS_ER_SUPPORT                      0x00e0
-#define TLV_ADDITIONAL_TEST_PLATFORM_ID         0x00e1
+#define TLV_TEST_PLATFORM_ID                    0x00e1
+// 00e2 - 00e5: used by sniffer agent
+#define TLV_PMK                                 0x00e6
+#define TLV_GROUP_MGMT_CIPHER                   0x00e7
+#define TLV_GROUP_MGMT                          0x00e8
+#define TLV_OPENSSL_CIPHERS                     0x00e9
+#define TLV_BEACON_PROT                         0x00ea
+#define TLV_IEEE80211_BE                        0x00eb
+#define TLV_MLD_AP                              0x00ec
+#define TLV_EHT_OPER_CHWIDTH                    0x00ed
+#define TLV_EHT_OPER_CENTR_FREQ                 0x00ee
+#define TLV_SAE_PASSWORD                        0x00ef
+#define TLV_SAE_PK_MODIFIER                     0x00f0
+#define TLV_SAE_PK_FILE                         0x00f1
+#define TLV_WPA_GROUP_REKEY                     0x00f2
+#define TLV_WPA_STRICT_REKEY                    0x00f3
+#define TLV_OCV                                 0x00f4
+#define TLV_MLD_FORCE_SINGLE_LINK               0x00f5
+#define TLV_MLD_CONNECT_BAND_PREF               0x00f6
+#define TLV_RX_SS_SUPPORT                       0x00f7
+#define TLV_MCS_INDEX                           0x00f8
+#define TLV_TX_NSS                              0x00f9
+#define TLV_TG_SRV_IP                           0x00fa
+#define TLV_TG_SRV_PORT                         0x00fb
+#define TLV_TRANS_PROTO                         0x00fe
+#define TLV_TG_TYPE                             0x00ff
+// 0100 - 0102: used by traffic generator
+#define TLV_STA_HT_MCS                          0x0103
+#define TLV_STA_VHT_CAPA                        0x0104
+#define TLV_STA_VHT_CAPA_MASK                   0x0105
+#define TLV_STA_VHT_RX_MCS_NSS_2                0x0106
+#define TLV_STA_VHT_TX_MCS_NSS_2                0x0107
+#define TLV_STA_VHT_RX_MCS_NSS_1                0x0108
+#define TLV_STA_VHT_TX_MCS_NSS_1                0x0109
+// 010a: used by traffic generator
+#define TLV_RSN_OVERRIDE_KEY_MGMT               0x010b
+#define TLV_RSN_OVERRIDE_PAIRWISE               0x010c
+#define TLV_RSN_OVERRIDE_MFP                    0x010d
+#define TLV_RSN_OVERRIDE_2_KEY_MGMT             0x010e
+#define TLV_RSN_OVERRIDE_2_PAIRWISE             0x010f
+#define TLV_RSN_OVERRIDE_2_MFP                  0x0110
+#define TLV_RSNE_OVERRIDE                       0x0111
+#define TLV_RSNOE_OVERRIDE                      0x0112
+#define TLV_RSNO2E_OVERRIDE                     0x0113
+#define TLV_STA_RSN_OVERRIDING                  0x0114
+#define TLV_RSNXE_OVERRIDE                      0x0115
+#define TLV_RSNXOE_OVERRIDE                     0x0116
+#define TLV_EAPOL_KEY_RESERVED_RANDOM           0x0117
+#define TLV_VENDOR_ELEMENTS                     0x0118
+#define TLV_ASSOCRESP_ELEMENTS                  0x0119
+#define TLV_HE_6G_REG_PWR_TYPE                  0x011a
+#define TLV_ELEMENT_EXTEND                      0x011b
+#define TLV_RNR                                 0x011c
+#define TLV_LARGE_BEACON_VS_SIZE                0x011d
+#define TLV_DTIM_PERIOD                         0x011e
+#define TLV_ELEMENT_RESERVED_BITS               0x011f
+#define TLV_ELEMENT_UNTESTED_BITS               0x0120
+#define TLV_ML_CTRL_EXT_MLD_CAPA_PRES_BIT       0x0121
 
 // class ResponseTLV
 // List of TLV used in the QuickTrack API response and ACK messages from the DUT
@@ -311,7 +380,6 @@ struct indigo_api {
 #define TLV_WSC_WPA_PASSPHRASE                  0xa00e
 #define TLV_PASSPOINT_ICON_CHECKSUM             0xa00f
 #define TLV_TEST_SNIFFER_APP_VERSION            0xa010
-
 /* AFC Request TLV */
 #define TLV_AFC_VERSION_NUMBER                  0xb000
 #define TLV_AFC_REQUEST_ID                      0xb001
@@ -352,6 +420,8 @@ struct indigo_api {
 #define TLV_AFC_OPER_FREQ                       0xbc00
 #define TLV_AFC_OPER_CHANNEL                    0xbc01
 #define TLV_AFC_CENTER_FREQ_INDEX               0xbc02
+// a011 - a013: used by sniffer agent
+#define TLV_TEST_PLATFORM_WLAN_IP_ADDR          0xa014
 
 /* TLV Value */
 #define DUT_TYPE_STAUT                          0x01
@@ -411,6 +481,7 @@ struct indigo_api {
 #define TLV_VALUE_RESET_NOT_OK                  "Failed to run Device reset"
 #define TLV_VALUE_POWER_SAVE_OK                 "Set power save value successfully"
 #define TLV_VALUE_POWER_SAVE_NOT_OK             "Failed to set power save value"
+#define TLV_VALUE_TG_SRV_NOT_OK                 "Failed to start traffic generator server"
 
 #define TLV_VALUE_P2P_FIND_NOT_OK               "Failed to trigger P2P find"
 #define TLV_VALUE_P2P_LISTEN_NOT_OK             "Failed to trigger P2P listen"

@@ -6,7 +6,7 @@ ifeq ($(AFC_CFLAG),AFC)
 ROLE = afc
 endif
 # Package Version
-VERSION = "2.2.0.46"
+VERSION = "3.0.0.12"
 
 OBJS = main.o eloop.o indigo_api.o indigo_packet.o utils.o wpa_ctrl.o
 CFLAGS += $(EXTRA_CFLAGS)
@@ -25,14 +25,24 @@ else
 # 64 bit
 #CC = /openwrt/11305r3/qsdk/staging_dir/toolchain-aarch64_cortex-a53_gcc-5.2.0_musl-1.1.16/bin/aarch64-openwrt-linux-gcc
 #LD = /openwrt/11305r3/qsdk/staging_dir/toolchain-aarch64_cortex-a53_gcc-5.2.0_musl-1.1.16/bin/aarch64-openwrt-linux-ld
+# Wi-Fi 7
+#CC = /openwrt/qsdk/staging_dir/toolchain-aarch64/bin/aarch64-openwrt-linux-musl-gcc
+#LD = /openwrt/qsdk/staging_dir/toolchain-aarch64/bin/aarch64-openwrt-linux-ld
 # _OPENWRT_: Use OPENWRT
 CFLAGS += -D_OPENWRT_
+#CFLAGS += -DHOSTAPD_SUPPORT_MBSSID_WAR
+# Removed -DHOSTAPD_SUPPORT_MBSSID_WAR: MXL hostapd-legacy natively supports MBSSID
+# via multibss_enable=1. The WAR splits MBSSID and non-MBSSID APs into separate
+# hostapd processes, which breaks rnr_auto_update cross-band neighbor discovery.
+# R2 vendor_specific.h excluded MXL from this WAR with #ifndef _MXL_ guard.
+CFLAGS += -DSUPPORT_THROUGHPUT_TEST
 endif
 
 # Define the app is for DUT or platform
 ifeq ($(ROLE),dut)
 OBJS += indigo_api_callback_dut.o vendor_specific_dut.o
 CFLAGS += -D_DUT_
+CFLAGS += -DSCAN_ENTRY_FLUSH
 else ifeq ($(ROLE), afc)
 OBJS += indigo_api_callback_afc.o vendor_specific_afc.o
 CFLAGS += -D_DUT_
